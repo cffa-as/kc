@@ -662,7 +662,7 @@ class GameBot:
 
     async def get_user_id_by_sid(self, sid: str) -> str:
         """根据sid获取用户的userId"""
-        u = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
+        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
         url = f"https://t1.ss911.cn/User/MyF.ss?p=1&t=5&sid={sid}&u={u}"
         try:
             response = await asyncio.to_thread(requests.get, url, timeout=10)
@@ -1156,7 +1156,7 @@ class GameBot:
     async def handle_user_analysis(self, sid: str):
         """分析用户动态"""
         # 固定 u 参数
-        u = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
+        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
 
         try:
             # 调用第一个接口获取用户真实ID
@@ -1268,7 +1268,7 @@ class GameBot:
 
     async def handle_user_roast(self, sid: str):
         """锐评用户动态"""
-        u = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
+        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
 
         try:
             myf_url = f"https://t1.ss911.cn/User/MyF.ss?p=1&t=5&sid={sid}&u={u}"
@@ -1351,8 +1351,8 @@ class GameBot:
 
     async def handle_follow(self, sid: str):
         """关注用户"""
-        u = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
-        follow_u = "%2BNemHgNs1FqJxNcqc12a5A2fS6dGNPLq2DRhuIEmrdY%3D"
+        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
+        follow_u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
 
         try:
             myf_url = f"https://t1.ss911.cn/User/MyF.ss?p=1&t=5&sid={sid}&u={u}"
@@ -1386,8 +1386,8 @@ class GameBot:
 
     async def handle_unfollow(self, sid: str):
         """取关用户"""
-        u = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
-        follow_u = "%2BNemHgNs1FqJxNcqc12a5A2fS6dGNPLq2DRhuIEmrdY%3D"
+        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
+        follow_u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
 
         try:
             myf_url = f"https://t1.ss911.cn/User/MyF.ss?p=1&t=5&sid={sid}&u={u}"

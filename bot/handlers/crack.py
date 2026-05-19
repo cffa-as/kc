@@ -13,6 +13,9 @@ import requests
 class CrackHandler:
     """破解房间处理器"""
 
+    U = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
+    FOLLOW_U = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
+
     def __init__(self, bot: "GameBot"):
         self.bot = bot
         self._room_cracking = False
@@ -111,8 +114,8 @@ class CrackHandler:
 class UserHandler:
     """用户处理器"""
 
-    U = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
-    FOLLOW_U = "%2BNemHgNs1FqJxNcqc12a5A2fS6dGNPLq2DRhuIEmrdY%3D"
+    U = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
+    FOLLOW_U = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
 
     def __init__(self, bot: "GameBot"):
         self.bot = bot
@@ -256,7 +259,7 @@ class UserHandler:
 
             user_info = data["data"][0]
             user_id = user_info["userId"]
-            user_name = user_info["UserName"]
+            user_name = user_info.get("userName") or user_info.get("UserName") or "未知"
 
             follow_url = f"https://t1.ss911.cn/User/FriendDo.ss?type=3&fid={user_id}&u={self.FOLLOW_U}"
             response = await asyncio.to_thread(requests.get, follow_url, timeout=10)
@@ -283,7 +286,7 @@ class UserHandler:
 
             user_info = data["data"][0]
             user_id = user_info["userId"]
-            user_name = user_info["UserName"]
+            user_name = user_info.get("userName") or user_info.get("UserName") or "未知"
 
             unfollow_url = f"https://t1.ss911.cn/User/FriendDo.ss?type=4&fid={user_id}&both=1&u={self.FOLLOW_U}"
             response = await asyncio.to_thread(requests.get, unfollow_url, timeout=10)

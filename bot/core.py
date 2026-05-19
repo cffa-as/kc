@@ -174,7 +174,7 @@ class GameBot:
     async def get_user_id_by_sid(self, sid: str) -> str:
         """根据sid获取用户ID"""
         import requests
-        u = "%2BNemHgNs1Fp0WE4O7QCmLkFAOp2dTe5vW2zRoDQu6xA%3D"
+        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
         url = f"https://t1.ss911.cn/User/MyF.ss?p=1&t=5&sid={sid}&u={u}"
         try:
             response = await asyncio.to_thread(requests.get, url, timeout=10)
