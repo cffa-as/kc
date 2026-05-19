@@ -625,7 +625,7 @@ class GameBot:
                 jump_room, jump_line = m.group(1), l.group(1)
                 self._join_fail_count += 1
                 self._log(f"进房失败，jump到房间{jump_room}线路{jump_line}")
-                if self._join_fail_count >= 3 and self._servers:
+                if self._join_fail_count >= 1 and self._servers:
                     self._join_fail_count = 0
                     self._current_server_index = (self._current_server_index + 1) % len(self._servers)
                     ws_url, http_url = self._servers[self._current_server_index]
@@ -669,8 +669,15 @@ class GameBot:
         else:
             await self.handlers['dispatcher'].dispatch(line)
 
-    async def reconnect_main_server(self, token: str, device: str, p: str) -> bool:
-        """重新连接到主服务器并登录（查房后专用）"""
+    async def reconnect_main_server(self, token: str, device: str, p: str, skip_auto_join: bool = False) -> bool:
+        """重新连接到主服务器并登录（查房后专用）
+        
+        Args:
+            token: 登录token
+            device: 设备标识
+            p: 密码
+            skip_auto_join: 是否跳过自动进入房间（查房后需手动进入房间时设为True）
+        """
         retry_count = 0
         while retry_count < 10:
             try:
@@ -689,7 +696,8 @@ class GameBot:
                 await self.send({"c": "UserInfo"})
                 await asyncio.sleep(0.3)
                 await self.send({"c": "JoinHall"})
-                await self._start_auto_follow()
+                if not skip_auto_join:
+                    await self._start_auto_follow()
                 if self._star_reminder:
                     await self._start_star_reminder()
                 return True

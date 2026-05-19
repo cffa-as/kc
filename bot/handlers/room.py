@@ -66,11 +66,11 @@ class RoomHandler:
             # 立即标记，防止 jump 消息触发多余的连接切换
             self.bot._kicked_by_backup = True
             self.bot._log("等待主连接恢复...")
-            # 重连主服务器
-            if await self.bot.reconnect_main_server(token, device, p):
+            # 重连主服务器（不自动进入房间，由这里手动进入原本房间）
+            if await self.bot.reconnect_main_server(token, device, p, skip_auto_join=True):
                 self.bot._log(f"查房完成，回到房间: {current_room}")
                 await self.bot.send({"RoomId": current_room, "Password": "", "c": "JoinRoom"})
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.5)
             # 清理标记
             self.bot._kicked_by_backup = False
 
