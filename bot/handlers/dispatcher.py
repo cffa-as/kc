@@ -24,7 +24,7 @@ class MessageDispatcher:
         self.add_handler(r'菜单', self._handle_menu)
 
         # 排行榜
-        self.add_handler(r'查(周|月)榜', self._handle_rank)
+        self.add_handler(r'查(周|月|年)榜', self._handle_rank)
         self.add_handler(r'(总结喇叭|喇叭总结)', self._handle_summary)
         self.add_handler(r'(喇叭提问|提问喇叭)', self._handle_question)
 
@@ -101,7 +101,7 @@ class MessageDispatcher:
         """发送菜单"""
         await self.bot.send_msg("功能列表")
         menus = [
-            "1.查周榜/查月榜+道具名(可选)",
+            "1.查周榜/查周榜2/查月榜/查月榜2+道具名(可选)",
             "2.总结喇叭N/喇叭提问N/总结房间N",
             "3.破解+房间号",
             "4.查房+房间号",

@@ -39,7 +39,9 @@ class RankQuery:
 
     def update_tool_objid(self, name: str, objid: str):
         """更新道具objid"""
-        if name in self.tool_data and self.tool_data[name].get("objid", "0") == "0":
+        if name not in self.tool_data:
+            self.tool_data[name] = {"name": name, "price": 0.0, "objid": "0"}
+        if self.tool_data[name].get("objid", "0") == "0":
             self.tool_data[name]["objid"] = objid
             self._save_tool_data()
             print(f"[更新] {name} objid -> {objid}")
@@ -60,10 +62,23 @@ class RankQuery:
 
     def _build_params(self, tool_id: str = None, rank_type: str = "week") -> dict:
         """构建请求参数"""
-        h_value = "0" if rank_type == "week" else "2"
+        if rank_type == "week":
+            h_value, g_value = "0", "0"
+        elif rank_type == "week2":
+            h_value, g_value = "0", "1"
+        elif rank_type == "month":
+            h_value, g_value = "2", "0"
+        elif rank_type == "month2":
+            h_value, g_value = "2", "1"
+        elif rank_type == "year":
+            h_value, g_value = "5", "0"
+        elif rank_type == "year2":
+            h_value, g_value = "5", "1"
+        else:
+            h_value, g_value = "0", "0"
         params = {
             "h": h_value,
-            "g": "0",
+            "g": g_value,
             "n": "3",
             "p": "1",
             "u": self.USER_HASH

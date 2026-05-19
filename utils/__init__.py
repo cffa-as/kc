@@ -123,7 +123,9 @@ class Censor:
     """敏感词过滤器"""
 
     def __init__(self, words_file: str = None):
-        self.words = self._load_words(words_file)
+        self.words = set()
+        self.remove_words = set()
+        self._load_words(words_file)
 
     def _load_words(self, words_file: str = None) -> set:
         """加载敏感词"""
@@ -131,15 +133,18 @@ class Censor:
             words_file = os.path.join(get_project_path(), "敏感词.json")
         try:
             data = load_json_file(words_file, {})
-            return set(data.get("words", []))
+            self.words = set(data.get("words", []))
+            self.remove_words = set(data.get("remove_words", []))
         except Exception:
-            return set()
+            self.words = set()
+            self.remove_words = set()
 
     def censor(self, msg: str) -> str:
-        """检查并处理敏感词"""
+        """检查并处理敏感词（白名单模式）"""
         for word in self.words:
             if word in msg:
-                msg = msg.replace(word, ".".join(word))
+                if word not in self.remove_words:
+                    msg = msg.replace(word, "*" * len(word))
         return msg
 
 

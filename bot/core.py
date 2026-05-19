@@ -75,6 +75,7 @@ class GameBot:
         self._last_followed_site = 0
         self._last_change_site_time = 0
         self._room_query_pending = None  # 当前是否有查房在进行
+        self._kicked_by_backup = False  # 是否因备用服务器查房被踢下线
 
         # 初始化处理器
         from bot.handlers import MessageDispatcher, RankHandler, AIHandler, RoomHandler, CrackHandler, UserHandler
@@ -633,7 +634,10 @@ class GameBot:
                     await self.ws.close()
                     await asyncio.sleep(1)
                     if await self.connect():
-                        await self.login(self._login_token, self._login_device, self._login_p)
+                        if not self._kicked_by_backup:
+                            await self.login(self._login_token, self._login_device, self._login_p)
+                        else:
+                            self._log("因备用服务器查房被踢，等待查房流程接管")
                 elif self._servers:
                     await asyncio.sleep(0.5)
                     await self.send({"RoomId": jump_room, "Password": "", "LineId": int(jump_line), "c": "JoinRoom"})
@@ -665,13 +669,46 @@ class GameBot:
         else:
             await self.handlers['dispatcher'].dispatch(line)
 
+    async def reconnect_main_server(self, token: str, device: str, p: str) -> bool:
+        """重新连接到主服务器并登录（查房后专用）"""
+        retry_count = 0
+        while retry_count < 10:
+            try:
+                ws_url, http_url = self._servers[self._current_server_index]
+                self.url = ws_url
+                self.origin = http_url
+                self.ws = await websockets.connect(
+                    ws_url,
+                    origin=http_url,
+                    user_agent_header="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+                )
+                self.running = True
+                self._log(f"✓ 已连接到主服务器: {ws_url}")
+                await self.send({"i": token, "device": device, "p": p})
+                await asyncio.sleep(0.3)
+                await self.send({"c": "UserInfo"})
+                await asyncio.sleep(0.3)
+                await self.send({"c": "JoinHall"})
+                await self._start_auto_follow()
+                if self._star_reminder:
+                    await self._start_star_reminder()
+                return True
+            except Exception as e:
+                retry_count += 1
+                self._log(f"主服务器重连失败 ({retry_count}/10): {e}")
+                await asyncio.sleep(2)
+        self._log("主服务器重连超时")
+        return False
+
     async def _reconnect(self):
         """重连"""
         self._log("⏳ 尝试重连...")
         await asyncio.sleep(3)
         if await self.connect():
             self._log("✓ 重连成功，重新登录...")
-            await self.login(self._login_token, self._login_device, self._login_p)
+            # 如果是因为备用服务器查房被踢，不重新进入房间
+            if not self._kicked_by_backup:
+                await self.login(self._login_token, self._login_device, self._login_p)
 
     def _handle_crack_response(self, msg: str, fixed_room: str):
         """处理破解响应"""

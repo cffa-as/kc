@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+import websockets
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -50,6 +51,7 @@ class RoomHandler:
                         if result.get("players"):
                             success = True
                             used_backup_server = True
+                            self.bot._kicked_by_backup = True
                             self.bot._log(f"备用服务器{ws_url}查房成功")
                             break
                     except Exception as e:
@@ -58,30 +60,19 @@ class RoomHandler:
 
         # 如果用了备用服务器，需要等待主连接恢复并回到原来房间
         if used_backup_server and current_room:
+            self.bot._log("等待主连接断开...")
+            # 等待足够时间让主连接被踢下线
+            await asyncio.sleep(5)
+            # 立即标记，防止 jump 消息触发多余的连接切换
+            self.bot._kicked_by_backup = True
             self.bot._log("等待主连接恢复...")
-            await asyncio.sleep(3)
-            # 验证连接是否恢复
-            retry_count = 0
-            while retry_count < 10:
-                try:
-                    if self.bot.ws:
-                        await asyncio.wait_for(self.bot.ws.send('{"c":"UserInfo"}'), timeout=2.0)
-                        self.bot._log("主连接已恢复")
-                        break
-                except Exception:
-                    retry_count += 1
-                    self.bot._log(f"等待连接恢复... ({retry_count}/10)")
-                    await asyncio.sleep(1)
-            else:
-                self.bot._log("重连超时，强制重连...")
-                if await self.bot.connect():
-                    await self.bot.login(token, device, p)
-
-            # 回到原来房间
-            if self.bot.ws:
+            # 重连主服务器
+            if await self.bot.reconnect_main_server(token, device, p):
                 self.bot._log(f"查房完成，回到房间: {current_room}")
                 await self.bot.send({"RoomId": current_room, "Password": "", "c": "JoinRoom"})
                 await asyncio.sleep(0.2)
+            # 清理标记
+            self.bot._kicked_by_backup = False
 
         # 回复结果
         if success and result:
@@ -170,11 +161,8 @@ class RoomHandler:
 
     def _parse_sync(self, msg: str, room_id: str, room_info: dict, players: list, room_event: asyncio.Event, player_event: asyncio.Event):
         """解析 SO_Sync 消息"""
-        # 只处理 SO_Sync 开头的消息
         if not msg.startswith("SO_Sync"):
             return
-
-        self.bot._log(f"_parse_sync called: room={room_id}, msg[:30]={msg[:30]}")
         try:
             json_str = msg[len("SO_Sync"):]
             data = json.loads(json_str)
@@ -185,24 +173,18 @@ class RoomHandler:
                 for item in l:
                     if len(item) >= 3 and item[0] == 1:
                         room_info[str(item[1])] = item[2]
-                self.bot._log(f"Room parsed: room_info={dict(room_info)}")
                 room_event.set()
 
             elif n == f"Player{room_id}":
-                self.bot._log(f"Player parse start: {len(l)} items")
                 for item in l:
                     flag = item[0]
-                    user_id = str(item[1])
-                    self.bot._log(f"  item: flag={flag}, uid={user_id}, len={len(item)}")
                     if flag == 1 and len(item) >= 3 and isinstance(item[2], dict):
                         player_data = item[2]
                         players.append({
-                            "UserId": user_id,
+                            "UserId": str(item[1]),
                             "UserName": player_data.get("UserName", "未知"),
                             "RoomSite": player_data.get("RoomSite", 0)
                         })
-                        self.bot._log(f"  → added player: {player_data.get('UserName')}, site={player_data.get('RoomSite')}")
-                self.bot._log(f"Player parsed: {len(players)} players")
                 player_event.set()
 
         except Exception as e:
