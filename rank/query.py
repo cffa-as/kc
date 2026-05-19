@@ -15,21 +15,9 @@ class RankQuery:
 
     def __init__(self):
         self.headers = {"Cookie": self.COOKIE}
-        self.tool_map = {}
-        self.tool_map_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool_map.json")
         self.tool_data_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "道具完整数据.json")
         self.tool_data = {}
-        self._load_tool_map()
         self._load_tool_data()
-
-    def _load_tool_map(self):
-        """加载道具映射表"""
-        try:
-            if os.path.exists(self.tool_map_file):
-                with open(self.tool_map_file, "r", encoding="utf-8") as f:
-                    self.tool_map = json.load(f)
-        except Exception:
-            self.tool_map = {}
 
     def _load_tool_data(self):
         """加载道具完整数据"""
@@ -45,11 +33,6 @@ class RankQuery:
         with open(self.tool_data_file, "w", encoding="utf-8") as f:
             json.dump(self.tool_data, f, ensure_ascii=False, indent=2)
 
-    def _save_tool_map(self):
-        """保存道具映射表"""
-        with open(self.tool_map_file, "w", encoding="utf-8") as f:
-            json.dump(self.tool_map, f, ensure_ascii=False, indent=2)
-
     def get_tool_price(self, name: str) -> float:
         """获取道具守护值"""
         return self.tool_data.get(name, {}).get("price", 0.0)
@@ -63,11 +46,16 @@ class RankQuery:
 
     def get_tool_id(self, name: str) -> Optional[str]:
         """获取道具ID（精确匹配 + 模糊匹配）"""
-        if name in self.tool_map:
-            return self.tool_map[name]
-        for tool_name, tool_id in self.tool_map.items():
-            if name in tool_name or tool_name in name:
-                return tool_id
+        if name in self.tool_data:
+            objid = self.tool_data[name].get("objid", "")
+            if objid and objid != "0":
+                return objid
+
+        for tool_name, tool_info in self.tool_data.items():
+            objid = tool_info.get("objid", "")
+            if objid and objid != "0":
+                if name in tool_name or tool_name in name:
+                    return objid
         return None
 
     def _build_params(self, tool_id: str = None, rank_type: str = "week") -> dict:
@@ -113,9 +101,7 @@ class RankQuery:
                 objid = str(item.get("objid", ""))
                 if objname and objid:
                     tools.append({"name": objname, "id": objid})
-                    self.tool_map[objname] = objid
-                    if objname in self.tool_data:
-                        self.update_tool_objid(objname, objid)
+                    self.update_tool_objid(objname, objid)
         return tools
 
     def fetch_tool_list(self, rank_type: str = "week") -> bool:
@@ -124,7 +110,6 @@ class RankQuery:
         data = self._fetch(params)
         if "rankList" in data:
             self._parse_tool_list(data)
-            self._save_tool_map()
             return True
         return False
 
@@ -132,9 +117,7 @@ class RankQuery:
         """获取所有道具列表"""
         params = self._build_params(rank_type=rank_type)
         data = self._fetch(params)
-        tools = self._parse_tool_list(data)
-        self._save_tool_map()
-        return tools
+        return self._parse_tool_list(data)
 
     def query_player_tools(self, tool_id: str, tool_name: str, rank_type: str = "week") -> list:
         """查询指定道具的玩家排行榜"""

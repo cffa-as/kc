@@ -75,7 +75,6 @@ python main.py
 |------|------|
 | `config.json` | 机器人配置（固定房间、跟随设置等） |
 | `敏感词.json` | 敏感词过滤列表 |
-| `tool_map.json` | 道具 ID 映射缓存 |
 | `道具完整数据.json` | 道具数据缓存 |
 | `bot.log` | 运行日志 |
 
