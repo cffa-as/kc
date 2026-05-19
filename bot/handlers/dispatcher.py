@@ -32,7 +32,7 @@ class MessageDispatcher:
         self.add_handler(r'^查房(\d+)', self._handle_room_query)
         self.add_handler(r'(总结房间|房间总结)\s*(\d+)', self._handle_room_summary)
         self.add_handler(r'^聊天记录(\d+)(?:@(\d+))?$', self._handle_chat_history)
-        self.add_handler(r'^聊天记录$', lambda m: self.bot.handlers['room'].handle_chat_history(10))
+        self.add_handler(r'^聊天记录$', lambda m: self.bot.handlers['ai'].handle_chat_history(10))
         self.add_handler(r'^记录提问\s*(?:@(\d+))?\s*(.+)$', self._handle_chat_question)
         self.add_handler(r'^提问记录\s*(?:@(\d+))?\s*(.+)$', self._handle_chat_question)
 

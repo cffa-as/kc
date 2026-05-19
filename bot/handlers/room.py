@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..core import GameBot
 
-import websockets
-
 
 class RoomHandler:
     """房间处理器"""
@@ -269,7 +267,3 @@ class RoomHandler:
         except Exception as e:
             self.bot._log(f"[{ws_url}] 查房异常: {e}")
             return {"room_info": {}, "players": []}
-
-    async def handle_chat_history(self, count: int = 10, user_id: str = None):
-        """处理聊天记录请求"""
-        await self.bot.handlers['ai'].handle_chat_history(count, user_id)

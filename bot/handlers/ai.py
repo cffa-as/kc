@@ -2,13 +2,16 @@
 
 import asyncio
 import re
-import os
 import json
-from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+
+from utils import filter_messages_by_time, split_message
 
 if TYPE_CHECKING:
     from ..core import GameBot
+
+
+import os
 
 
 class AIHandler:
@@ -22,27 +25,7 @@ class AIHandler:
         """获取日志文件路径"""
         if hasattr(self.bot, 'log_path'):
             return self.bot.log_path
-        # 回退到 bot/bot.log
         return os.path.join(os.path.dirname(os.path.dirname(__file__)), "bot.log")
-
-    def _filter_by_time(self, messages: list, minutes: int) -> list:
-        """按时间过滤消息（处理跨午夜情况）"""
-        now = datetime.now()
-        current_time_str = now.strftime("%H:%M:%S")
-        cutoff_time_str = (now - timedelta(minutes=minutes)).strftime("%H:%M:%S")
-
-        filtered = []
-        for msg in messages:
-            msg_time = msg.get("timestamp", "")
-            if not msg_time:
-                continue
-            if cutoff_time_str <= current_time_str:
-                if cutoff_time_str <= msg_time <= current_time_str:
-                    filtered.append(msg)
-            else:
-                if msg_time >= cutoff_time_str or msg_time <= current_time_str:
-                    filtered.append(msg)
-        return filtered
 
     def _read_speaker_messages(self, minutes: int = 5) -> list:
         """从日志文件读取喇叭消息"""
@@ -81,7 +64,7 @@ class AIHandler:
             return []
 
         # 过滤时间
-        recent_messages = self._filter_by_time(messages, minutes)
+        recent_messages = filter_messages_by_time(messages, minutes)
         return [{"userName": m["userName"], "msg": m["msg"]} for m in recent_messages]
 
     def _read_room_messages(self, minutes: int = 5, user_id: str = None) -> list:
@@ -135,7 +118,7 @@ class AIHandler:
             return []
 
         # 过滤时间
-        recent_messages = self._filter_by_time(messages, minutes)
+        recent_messages = filter_messages_by_time(messages, minutes)
         return [{"timestamp": m.get("timestamp", ""), "site": m["site"], "userName": m["userName"], "userId": m["userId"], "msg": m["msg"]} for m in recent_messages]
 
     def _read_room_messages_by_count(self, count: int = 10, user_id: str = None) -> list:
@@ -159,8 +142,8 @@ class AIHandler:
         for line in summary.split("\n"):
             if not line.strip():
                 continue
-            for i in range(0, len(line), 150):
-                await self.bot.send_msg(line[i:i + 150], "#00FFFF")
+            for part in split_message(line, 150):
+                await self.bot.send_msg(part, "#00FFFF")
                 await asyncio.sleep(1.5)
 
     async def handle_ai_question(self, content: str):
@@ -181,8 +164,8 @@ class AIHandler:
         for line in answer.split("\n"):
             if not line.strip():
                 continue
-            for i in range(0, len(line), 150):
-                await self.bot.send_msg(line[i:i + 150], "#00FFFF")
+            for part in split_message(line, 150):
+                await self.bot.send_msg(part, "#00FFFF")
                 await asyncio.sleep(1.5)
 
     async def handle_ai_chat(self, content: str):
@@ -197,8 +180,8 @@ class AIHandler:
         for line in answer.split("\n"):
             if not line.strip():
                 continue
-            for i in range(0, len(line), 150):
-                await self.bot.send_msg(line[i:i + 150], "#00FFFF")
+            for part in split_message(line, 150):
+                await self.bot.send_msg(part, "#00FFFF")
                 await asyncio.sleep(1.5)
 
     async def handle_room_summary(self, minutes: int = 5):
@@ -220,8 +203,8 @@ class AIHandler:
         for line in summary.split("\n"):
             if not line.strip():
                 continue
-            for i in range(0, len(line), 150):
-                await self.bot.send_msg(line[i:i + 150], "#00FFFF")
+            for part in split_message(line, 150):
+                await self.bot.send_msg(part, "#00FFFF")
                 await asyncio.sleep(1.5)
 
     async def handle_chat_history(self, count: int = 10, user_id: str = None):
@@ -252,11 +235,8 @@ class AIHandler:
             if len(msg_text) <= 150:
                 await self.bot.send_msg(msg_text, "#00FFFF")
             else:
-                for line in msg_text.split("\n"):
-                    if not line.strip():
-                        continue
-                    for i in range(0, len(line), 150):
-                        await self.bot.send_msg(line[i:i + 150], "#00FFFF")
+                for part in split_message(msg_text, 150):
+                    await self.bot.send_msg(part, "#00FFFF")
             await asyncio.sleep(1.5)
 
     async def handle_chat_question(self, question: str, user_id: str = None):
@@ -285,6 +265,6 @@ class AIHandler:
         for line in answer.split("\n"):
             if not line.strip():
                 continue
-            for i in range(0, len(line), 150):
-                await self.bot.send_msg(line[i:i + 150], "#00FFFF")
+            for part in split_message(line, 150):
+                await self.bot.send_msg(part, "#00FFFF")
                 await asyncio.sleep(1.5)
