@@ -273,18 +273,3 @@ class RoomHandler:
     async def handle_chat_history(self, count: int = 10, user_id: str = None):
         """处理聊天记录请求"""
         await self.bot.handlers['ai'].handle_chat_history(count, user_id)
-
-    async def handle_change_site(self, site: str, send_follow_msg: bool = False):
-        """处理换位请求"""
-        await self.bot.send({"Site": "-1", "FSite": "", "c": "ChangeSite"})
-        await asyncio.sleep(0.3)
-        await self.bot.send({"Site": site, "c": "ChangeSite"})
-
-        if send_follow_msg:
-            follow_msg = self.bot.get_follow_message()
-            if follow_msg:
-                await asyncio.sleep(0.5)
-                try:
-                    await self.bot.send_msg(follow_msg, "#00FF00")
-                except Exception:
-                    pass
