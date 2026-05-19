@@ -44,10 +44,6 @@ async def main():
         if fixed_room:
             print(f"固定房间: {fixed_room}")
 
-        auto_follow_sid = bot.get_auto_follow_sid()
-        if auto_follow_sid:
-            print(f"自动跟随: sid={auto_follow_sid}, userId={bot.get_auto_follow_user_id()}")
-
         if await bot.connect():
             print(f"成功连接到: {ws_url}")
             connected = True

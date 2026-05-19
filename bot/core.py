@@ -50,21 +50,12 @@ class GameBot:
         # 加载配置
         self._allowed_users = set(self.config.get("allowed_users", []))
         self._owners = set(self.config.get("owners", []))
-        self._auto_follow_sid = self.config.get("auto_follow_sid", "")
-        self._auto_follow_user_id = self.config.get("auto_follow_user_id", "")
-        self._follow_message = self.config.get("follow_message", "")
-
         # 状态
-        self._current_followed_room = ""
-        self._auto_follow_task = None
-        self._auto_change_site = self.config.get("auto_change_site", False)
-        self._auto_change_site_task = None
         self._star_reminder = self.config.get("star_reminder", False)
         self._star_reminder_task = None
         self._star_reminder_sent_today = set()
         self._bot_name = ""
         self._my_user_id = ""
-        self._current_user_id = None
         self._last_summary_time = 0
         self._last_heartbeat = time.time()
         self._servers = self.SERVERS
@@ -72,8 +63,6 @@ class GameBot:
         self._join_fail_count = 0
         self._player_query_handlers = {}
         self._login_token = ""
-        self._last_followed_site = 0
-        self._last_change_site_time = 0
         self._room_query_pending = None  # 当前是否有查房在进行
         self._kicked_by_backup = False  # 是否因备用服务器查房被踢下线
 
@@ -134,163 +123,6 @@ class GameBot:
         """检查用户是否有权限"""
         return str(user_id) in self._allowed_users or str(user_id) in [str(u) for u in self._allowed_users]
 
-    # ==================== 跟随相关 ====================
-
-    async def set_auto_follow(self, sid: str):
-        """设置自动跟随"""
-        user_id = await self.get_user_id_by_sid(sid)
-        self.config.set("auto_follow_sid", sid)
-        self.config.set("auto_follow_user_id", user_id or "")
-        self._auto_follow_sid = sid
-        self._auto_follow_user_id = user_id or ""
-        self._log(f"已设置自动跟随: sid={sid}, user_id={user_id or '获取失败'}")
-        await self._restart_auto_follow()
-
-    def clear_auto_follow(self):
-        """清除自动跟随"""
-        self.config.delete("auto_follow_sid")
-        self.config.delete("auto_follow_user_id")
-        self._auto_follow_sid = ""
-        self._auto_follow_user_id = ""
-        if self._auto_change_site_task:
-            self._auto_change_site_task.cancel()
-            self._auto_change_site_task = None
-        self._log("已取消自动跟随")
-
-    def get_auto_follow_sid(self) -> str:
-        return self._auto_follow_sid
-
-    def get_auto_follow_user_id(self) -> str:
-        return self._auto_follow_user_id
-
-    def set_follow_message(self, message: str):
-        """设置跟随语"""
-        self.config.set("follow_message", message)
-        self._follow_message = message
-        self._log(f"已设置跟随语: {message}")
-
-    def get_follow_message(self) -> str:
-        return self._follow_message
-
-    async def get_user_id_by_sid(self, sid: str) -> str:
-        """根据sid获取用户ID"""
-        import requests
-        u = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
-        url = f"https://t1.ss911.cn/User/MyF.ss?p=1&t=5&sid={sid}&u={u}"
-        try:
-            response = await asyncio.to_thread(requests.get, url, timeout=10)
-            data = response.json()
-            if data.get("msg") == "OK" and data.get("data"):
-                return data["data"][0].get("userId", "")
-        except Exception as e:
-            self._log(f"获取用户ID失败: {e}")
-        return ""
-
-    # ==================== 自动换位 ====================
-
-    async def toggle_auto_change_site(self, enable: bool):
-        """开启/关闭自动换位"""
-        self._auto_change_site = enable
-        self.config.set("auto_change_site", enable)
-        self._log(f"自动换位: {'开启' if enable else '关闭'}")
-        if enable and self._auto_follow_sid:
-            await self._start_auto_change_site()
-        else:
-            await self._stop_auto_change_site()
-
-    async def _start_auto_change_site(self):
-        """启动自动换位"""
-        if self._auto_change_site_task:
-            self._auto_change_site_task.cancel()
-        self._auto_change_site_task = asyncio.create_task(self._auto_change_site_loop())
-
-    async def _stop_auto_change_site(self):
-        """停止自动换位"""
-        if self._auto_change_site_task:
-            self._auto_change_site_task.cancel()
-            self._auto_change_site_task = None
-
-    async def _auto_change_site_loop(self):
-        """自动换位循环"""
-        while self.running and self._auto_change_site:
-            await asyncio.sleep(1)
-            if not self._auto_change_site or self._room_query_pending:
-                break
-            room_id = self._current_followed_room
-            if room_id:
-                await self.send({"c": "SO_o", "n": f"Player{room_id}"})
-
-    async def _handle_auto_change_site(self, msg: str):
-        """处理房间同步消息，自动换位"""
-        if not self._auto_change_site or self._room_query_pending:
-            return
-
-        # 解析玩家列表
-        players = []
-        player_blocks = re.findall(r'\[1,"(\d+)",\{(.*?)\}\]', msg, re.DOTALL)
-        for user_id, block in player_blocks:
-            if user_id == self._my_user_id:
-                continue
-            site_match = re.search(r'"RoomSite"\s*:\s*(\d+)', block)
-            if site_match:
-                players.append({"user_id": user_id, "site": int(site_match.group(1))})
-
-        if not players:
-            return
-
-        follow_user_id = str(self._auto_follow_user_id)
-        followed_site = None
-        for p in players:
-            if str(p["user_id"]) == follow_user_id:
-                followed_site = p["site"]
-                break
-
-        if not followed_site:
-            return
-
-        # 检查位置是否变化
-        if followed_site == self._last_followed_site and self._last_followed_site != 0:
-            return
-
-        # 防抖：距离上次换位小于2秒不换
-        import time
-        if time.time() - self._last_change_site_time < 2:
-            return
-
-        self._log(f"跟随者位置变化: {self._last_followed_site} -> {followed_site}")
-        self._last_followed_site = followed_site
-
-        # 找出空位
-        occupied_sites = {p["site"] for p in players if p["site"] != 0}
-        empty_sites = [s for s in range(1, 21) if s not in occupied_sites]
-
-        if not empty_sites:
-            self._log("房间已满，无法换位")
-            return
-
-        # 优先级：右边>左边>下>上
-        priority = self._get_site_priority(followed_site)
-        target_site = None
-        for p in priority:
-            if p in empty_sites:
-                target_site = p
-                break
-
-        if target_site is None:
-            target_site = empty_sites[0]
-
-        self._log(f"自动换位: 跟随者在{followed_site}，选择{target_site}")
-        self._last_change_site_time = time.time()
-        await self.handle_change_site(str(target_site), send_follow_msg=True)
-
-    def _get_site_priority(self, site: int) -> list:
-        """获取位置优先级列表，右>左>下>上"""
-        right = site + 1 if site % 5 != 0 else site - 4
-        left = site - 1 if site % 5 != 1 else site + 4
-        down = site + 5 if site <= 15 else site - 15
-        up = site - 5 if site > 5 else site + 15
-        return [right, left, down, up]
-
     # ==================== 明星提醒 ====================
 
     async def toggle_star_reminder(self, enable: bool):
@@ -338,90 +170,18 @@ class GameBot:
                         self._star_reminder_sent_today.add(key)
             await asyncio.sleep(1)
 
-    # ==================== 跟随核心逻辑 ====================
-
-    async def _restart_auto_follow(self):
-        """重启自动跟随"""
-        if self._auto_follow_task:
-            self._auto_follow_task.cancel()
-            self._auto_follow_task = None
-        self._current_followed_room = ""
-        await self._start_auto_follow()
-
-    async def _start_auto_follow(self):
-        """启动自动跟随"""
-        auto_follow_sid = self.get_auto_follow_sid()
-        if not auto_follow_sid:
-            await self._join_fixed_room()
-            return
-
-        user_id = self.get_auto_follow_user_id()
-        if not user_id:
-            self._log("错误: json 中没有 userId，请先设置自动跟随")
-            await self._join_fixed_room()
-            return
-
-        await self.send({"UserId": user_id, "c": "PlayerInfo2"})
-
-        if self._auto_follow_task:
-            self._auto_follow_task.cancel()
-        self._auto_follow_task = asyncio.create_task(self._auto_follow_loop(user_id))
-
-    async def _auto_follow_loop(self, user_id: str):
-        """自动跟随循环"""
-        while self.running and self.get_auto_follow_sid():
-            await asyncio.sleep(1)
-            if not self.get_auto_follow_sid():
-                break
-            await self.send({"UserId": user_id, "c": "PlayerInfo2"})
-
-    async def _handle_player_info(self, msg: str):
-        """处理PlayerInfo响应"""
-        auto_follow_sid = self.get_auto_follow_sid()
-        if not auto_follow_sid:
-            return
-
-        room_match = re.search(r'"Room"\s*:\s*"?(\d+)"?', msg)
-        if not room_match:
-            room_id = self._current_followed_room
-            if room_id:
-                await self._join_followed_room(room_id)
-            return
-
-        room_id = room_match.group(1)
-        if room_id and room_id != self._current_followed_room:
-            self._log(f"检测到房间变化: {self._current_followed_room} -> {room_id}")
-            self._current_followed_room = room_id
-            await self._join_followed_room(room_id)
-
-    async def _join_followed_room(self, room_id: str):
-        """进入跟随的房间"""
-        await self.send({"RoomId": room_id, "Password": "", "c": "JoinRoom"})
-        self._log(f"自动跟随进入房间: {room_id}")
-        await asyncio.sleep(1)
-        await self.send({"c": "SO_o", "n": f"Player{room_id}"})
-        await asyncio.sleep(1)
-
-        follow_msg = self.get_follow_message()
-        if follow_msg:
-            await asyncio.sleep(0.5)
-            await self.send_msg(follow_msg, "#00FF00")
-
-        if self._auto_change_site:
-            self._player_query_handlers[room_id] = self._handle_auto_change_site
-            await self._start_auto_change_site()
+    # ==================== 固定房间 ====================
 
     async def _join_fixed_room(self):
         """进入固定房间"""
         fixed_room = self.get_fixed_room()
         if fixed_room:
             await self.send({"RoomId": fixed_room, "Password": "", "c": "JoinRoom"})
-            self._current_followed_room = fixed_room
             self._log(f"进入固定房间: {fixed_room}")
 
-    async def handle_change_site(self, site: str, send_follow_msg: bool = False):
+    async def handle_change_site(self, site: str):
         """处理换位请求"""
-        self._log(f"换位到: {site}, send_follow_msg={send_follow_msg}")
+        self._log(f"换位到: {site}")
 
         await self.send({"Site": "-1", "FSite": "", "c": "ChangeSite"})
         self._log(f"发送上树")
@@ -429,12 +189,6 @@ class GameBot:
 
         await self.send({"Site": site, "c": "ChangeSite"})
         self._log(f"发送换位: {site}")
-
-        if send_follow_msg:
-            follow_msg = self.get_follow_message()
-            if follow_msg:
-                await asyncio.sleep(0.5)
-                await self.send_msg(follow_msg, "#00FF00")
 
     # ==================== 连接管理 ====================
 
@@ -499,7 +253,7 @@ class GameBot:
         await self.send({"c": "UserInfo"})
         await asyncio.sleep(0.3)
         await self.send({"c": "JoinHall"})
-        await self._start_auto_follow()
+        await self._join_fixed_room()
         if self._star_reminder:
             await self._start_star_reminder()
 
@@ -574,7 +328,6 @@ class GameBot:
                 m = re.search(r'"u"\s*:\s*\[\s*\d+\s*,\s*(\d+)', msg)
                 if m:
                     user_id = m.group(1)
-                    self._current_user_id = user_id
                     if len(self._allowed_users) > 0 and user_id not in self._allowed_users:
                         self._log(f"用户 {user_id} 不在权限列表中，跳过")
                         return
@@ -651,10 +404,6 @@ class GameBot:
                 reply = {"ToRoomId": room_id, "FromUserName": username, "c": "LeaveRoom"}
                 await self.send(reply)
 
-        # 处理PlayerInfo
-        if msg.startswith("PlayerInfo{") or "PlayerInfo2" in msg:
-            await self._handle_player_info(msg)
-
     async def _process_input(self, line: str):
         """处理用户输入"""
         if line.strip() == "":
@@ -669,15 +418,8 @@ class GameBot:
         else:
             await self.handlers['dispatcher'].dispatch(line)
 
-    async def reconnect_main_server(self, token: str, device: str, p: str, skip_auto_join: bool = False) -> bool:
-        """重新连接到主服务器并登录（查房后专用）
-        
-        Args:
-            token: 登录token
-            device: 设备标识
-            p: 密码
-            skip_auto_join: 是否跳过自动进入房间（查房后需手动进入房间时设为True）
-        """
+    async def reconnect_main_server(self, token: str, device: str, p: str) -> bool:
+        """重新连接到主服务器并登录（查房后专用）"""
         retry_count = 0
         while retry_count < 10:
             try:
@@ -696,8 +438,7 @@ class GameBot:
                 await self.send({"c": "UserInfo"})
                 await asyncio.sleep(0.3)
                 await self.send({"c": "JoinHall"})
-                if not skip_auto_join:
-                    await self._start_auto_follow()
+                await self._join_fixed_room()
                 if self._star_reminder:
                     await self._start_star_reminder()
                 return True

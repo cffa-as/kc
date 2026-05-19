@@ -20,7 +20,7 @@ class RoomHandler:
         """处理查房请求"""
         self.bot._log(f"处理查房请求: {room_id}")
 
-        current_room = self.bot._current_followed_room or self.bot.get_fixed_room()
+        current_room = self.bot.get_fixed_room()
         token = getattr(self.bot, '_login_token', '')
         device = getattr(self.bot, '_login_device', '')
         p = getattr(self.bot, '_login_p', '')
@@ -67,7 +67,7 @@ class RoomHandler:
             self.bot._kicked_by_backup = True
             self.bot._log("等待主连接恢复...")
             # 重连主服务器（不自动进入房间，由这里手动进入原本房间）
-            if await self.bot.reconnect_main_server(token, device, p, skip_auto_join=True):
+            if await self.bot.reconnect_main_server(token, device, p):
                 self.bot._log(f"查房完成，回到房间: {current_room}")
                 await self.bot.send({"RoomId": current_room, "Password": "", "c": "JoinRoom"})
                 await asyncio.sleep(0.5)

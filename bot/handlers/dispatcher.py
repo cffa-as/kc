@@ -16,6 +16,7 @@ class MessageDispatcher:
         self.bot = bot
         self._handlers: list[tuple[re.Pattern, Callable]] = []
         self._last_crack_room: Optional[str] = None
+        self._current_user_id: Optional[str] = None
         self._register_handlers()
 
     def _register_handlers(self):
@@ -43,20 +44,9 @@ class MessageDispatcher:
         # 去房间
         self.add_handler(r'^去\s*(\d+)', self._handle_go_room)
 
-        # 跟随
-        self.add_handler(r'^自动跟随\s*(\d+)', self._handle_auto_follow)
-        self.add_handler(r'取消跟随', self._handle_cancel_follow)
-
-        # 自动换位
-        self.add_handler(r'开启自动换位', self._handle_auto_change_on)
-        self.add_handler(r'关闭自动换位', self._handle_auto_change_off)
-
         # 明星提醒
         self.add_handler(r'开启明星提醒', self._handle_star_reminder_on)
         self.add_handler(r'关闭明星提醒', self._handle_star_reminder_off)
-
-        # 跟随语
-        self.add_handler(r'^跟随语\s*(.+)', self._handle_follow_message)
 
         # 破解
         self.add_handler(r'破解\s*(\d+)', self._handle_crack)
@@ -84,6 +74,7 @@ class MessageDispatcher:
 
     async def dispatch(self, content: str, user_id: Optional[str] = None):
         """分发消息到对应处理器"""
+        self._current_user_id = user_id
         for pattern, handler in self._handlers:
             match = pattern.search(content)
             if match:
@@ -107,10 +98,9 @@ class MessageDispatcher:
             "4.查房+房间号",
             "5.AI+问题",
             "6.分析/锐评动态+用户ID",
-            "7.开启/关闭自动换位",
-            "8.开启/关闭明星提醒",
-            "9.聊天记录N条（可选@用户ID筛选）",
-            "10.记录提问+问题（可选@用户ID）"
+            "7.开启/关闭明星提醒",
+            "8.聊天记录N条（可选@用户ID筛选）",
+            "9.记录提问+问题（可选@用户ID）"
         ]
         for m in menus:
             await asyncio.sleep(1)
@@ -162,28 +152,6 @@ class MessageDispatcher:
         self.bot.clear_fixed_room()
         await self.bot.send_msg("已取消固定房间")
 
-    async def _handle_auto_follow(self, match):
-        """设置自动跟随"""
-        sid = match.group(1)
-        await self.bot.set_auto_follow(sid)
-        await self.bot.send_msg(f"已设置自动跟随: {sid}")
-
-    async def _handle_cancel_follow(self, match):
-        """取消跟随"""
-        self.bot.clear_auto_follow()
-        self.bot._current_followed_room = ""
-        await self.bot.send_msg("已取消自动跟随")
-
-    async def _handle_auto_change_on(self, match):
-        """开启自动换位"""
-        await self.bot.toggle_auto_change_site(True)
-        await self.bot.send_msg(f"自动换位: {'开启' if self.bot._auto_change_site else '关闭'}")
-
-    async def _handle_auto_change_off(self, match):
-        """关闭自动换位"""
-        await self.bot.toggle_auto_change_site(False)
-        await self.bot.send_msg(f"自动换位: {'开启' if self.bot._auto_change_site else '关闭'}")
-
     async def _handle_star_reminder_on(self, match):
         """开启明星提醒"""
         await self.bot.toggle_star_reminder(True)
@@ -194,20 +162,6 @@ class MessageDispatcher:
         await self.bot.toggle_star_reminder(False)
         await self.bot.send_msg(f"明星提醒: {'开启' if self.bot._star_reminder else '关闭'}")
 
-    async def _handle_follow_message(self, match):
-        """设置跟随语"""
-        user_id = getattr(self.bot, '_current_user_id', None)
-        if user_id and user_id in self.bot._owners:
-            msg_content = match.group(1).strip()
-            if msg_content:
-                self.bot.set_follow_message(msg_content)
-                await self.bot.send_msg(f"已设置跟随语: {msg_content}")
-            else:
-                current_msg = self.bot.get_follow_message()
-                await self.bot.send_msg(f"当前跟随语: {current_msg if current_msg else '未设置'}")
-        else:
-            await self.bot.send_msg("只有主人才能设置跟随语")
-
     async def _handle_crack(self, match):
         """处理破解"""
         room_id = match.group(1)
@@ -216,7 +170,7 @@ class MessageDispatcher:
 
     async def _handle_add_permission(self, match):
         """添加权限"""
-        user_id = getattr(self.bot, '_current_user_id', None)
+        user_id = self._current_user_id
         if user_id and user_id in self.bot._owners:
             target_user = match.group(1)
             self.bot.add_allowed_user(target_user)
@@ -224,7 +178,7 @@ class MessageDispatcher:
 
     async def _handle_remove_permission(self, match):
         """删除权限"""
-        user_id = getattr(self.bot, '_current_user_id', None)
+        user_id = self._current_user_id
         if user_id and user_id in self.bot._owners:
             target_user = match.group(1)
             self.bot.remove_allowed_user(target_user)
@@ -256,13 +210,13 @@ class MessageDispatcher:
 
     async def _handle_gotree(self, match):
         """上树"""
-        await self.bot.handlers['room'].handle_change_site("-1", send_follow_msg=False)
+        await self.bot.handlers['room'].handle_change_site("-1")
 
     async def _handle_change_site(self, match):
         """换位"""
         site = int(match.group(1))
         if 1 <= site <= 20:
-            await self.bot.handlers['room'].handle_change_site(str(site), send_follow_msg=False)
+            await self.bot.handlers['room'].handle_change_site(str(site))
         else:
             await self.bot.send_msg("换位只支持1-20")
 
