@@ -13,8 +13,8 @@ import requests
 class CrackHandler:
     """破解房间处理器"""
 
-    U = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
-    FOLLOW_U = "%2BNemHgNs1FoC3oABc0cSUeB6hvpcqbgIMhExuooxtmQ%3D"
+    U = "e87F44VUl3wjvWv0weqGL6sbfSojFBWQYTYd3KKvteI%3D"
+    FOLLOW_U = "e87F44VUl3wjvWv0weqGL6sbfSojFBWQYTYd3KKvteI%3D"
 
     def __init__(self, bot: "GameBot"):
         self.bot = bot
@@ -33,10 +33,12 @@ class CrackHandler:
             "stage": 1,
             "current_password": 0
         }
+        self.bot._crack_password = ""  # 清空上次密码
         await self.bot.send_msg(f"开始破解房间 {room_id}...", "#00FF00")
 
         # 发送第一个密码尝试 (000)
         password = "000"
+        self.bot._crack_password = password  # 保存当前密码
         self.bot._log(f"尝试密码: {password}")
         await self.bot.send({"RoomId": room_id, "Password": password, "c": "JoinRoom"})
 
@@ -60,6 +62,7 @@ class CrackHandler:
                     self._crack_pending["current_password"] = 0
                     self._crack_pending["stage"] = 2
                     password = "0"
+                    self.bot._crack_password = password
                     self.bot._log(f"阶段1完成，进入阶段2: 尝试密码: {password}")
                     return {"action": "try_password", "RoomId": room_id, "Password": password, "c": "JoinRoom", "delay": True}
                 password = f"{self._crack_pending['current_password']:03d}"
@@ -68,6 +71,7 @@ class CrackHandler:
                     self._crack_pending["current_password"] = 0
                     self._crack_pending["stage"] = 3
                     password = "00"
+                    self.bot._crack_password = password
                     self.bot._log(f"阶段2完成，进入阶段3: 尝试密码: {password}")
                     return {"action": "try_password", "RoomId": room_id, "Password": password, "c": "JoinRoom", "delay": True}
                 password = f"{self._crack_pending['current_password']}"
@@ -75,12 +79,15 @@ class CrackHandler:
                 if self._crack_pending["current_password"] >= 100:
                     self._room_cracking = False
                     self._crack_pending = None
+                    self.bot._crack_password = ""
                     return "crack_failed"
                 password = f"{self._crack_pending['current_password']:02d}"
 
             if self._crack_pending["current_password"] > 0 and self._crack_pending["current_password"] % 50 == 0:
+                self.bot._crack_password = password
                 return {"action": "try_password", "RoomId": room_id, "Password": password, "c": "JoinRoom", "delay": True}
 
+            self.bot._crack_password = password
             self.bot._log(f"尝试密码: {password}")
             return {"action": "try_password", "RoomId": room_id, "Password": password, "c": "JoinRoom"}
 
@@ -98,6 +105,7 @@ class CrackHandler:
                 fixed_room = self.bot.get_fixed_room()
                 self._room_cracking = False
                 self._crack_pending = None
+                self.bot._crack_password = ""
                 return {"action": "crack_success", "fixed_room": fixed_room, "password": password}
 
         elif msg == "p":
@@ -109,3 +117,4 @@ class CrackHandler:
         """停止破解"""
         self._room_cracking = False
         self._crack_pending = None
+        self.bot._crack_password = ""

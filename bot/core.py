@@ -354,13 +354,12 @@ class GameBot:
                     fixed_room = crack_result['fixed_room']
                     
                     if crack_room:
-                        await self.send({"RoomId": crack_room, "Password": "", "c": "JoinRoom"})
-                        await asyncio.sleep(0.5)
                         await self.send_msg(f"房间{crack_room}密码: {password}", "#00FF00")
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(2)
                     
-                    await self.send({"RoomId": fixed_room, "Password": password, "c": "JoinRoom"})
-                    await asyncio.sleep(0.5)
+                    if fixed_room:
+                        await self.send({"RoomId": fixed_room, "Password": "", "c": "JoinRoom"})
+                        await asyncio.sleep(0.5)
                 elif crack_result.get("action") == "heartbeat":
                     await self.send_raw("p")
 
@@ -393,7 +392,9 @@ class GameBot:
                             self._log("因备用服务器查房被踢，等待查房流程接管")
                 elif self._servers:
                     await asyncio.sleep(0.5)
-                    await self.send({"RoomId": jump_room, "Password": "", "LineId": int(jump_line), "c": "JoinRoom"})
+                    # 破解时保持密码
+                    password = getattr(self, '_crack_password', "")
+                    await self.send({"RoomId": jump_room, "Password": password, "LineId": int(jump_line), "c": "JoinRoom"})
 
         # 处理邀请
         if msg.startswith("Invite{"):
