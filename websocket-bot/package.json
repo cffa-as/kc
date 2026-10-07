@@ -1,0 +1,7 @@
+{
+  "name": "kc-wecom-bridge",
+  "private": true,
+  "dependencies": {
+    "@wecom/aibot-node-sdk": "1.0.6"
+  }
+}

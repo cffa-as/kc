@@ -1,0 +1,76 @@
+"""游戏机器人入口"""
+
+import asyncio
+import json
+import os
+import sys
+
+# 添加项目根目录到路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from bot import GameBot
+
+
+def load_config():
+    """加载配置文件"""
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+    with open(config_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+async def main():
+    """主函数"""
+    servers = GameBot.SERVERS
+
+    # 加载配置
+    config = load_config()
+
+    bot = None
+    connected = False
+
+    # 登录参数
+    login_token = config.get("login_token", "")
+    login_device = config.get("login_device", "html5:1467")
+    login_p = config.get("login_p", "")
+    login_z = int(config.get("login_z", 1))
+    if not login_token or not login_device:
+        raise RuntimeError("缺少登录参数，请先运行 venv/bin/python tools/ws_capture.py 自动同步")
+
+    # 尝试连接每个服务器
+    for ws_url, http_url in servers:
+        print(f"尝试连接: {ws_url}")
+        bot = GameBot(ws_url, http_url)
+        bot._open_log()
+
+        # 显示配置
+        fixed_room = bot.get_fixed_room()
+        if fixed_room:
+            print(f"固定房间: {fixed_room}")
+
+        if await bot.connect():
+            print(f"成功连接到: {ws_url}")
+            connected = True
+            await bot.login(login_token, login_device, login_p, login_z)
+            await bot.start_wecom()
+            try:
+                await bot.run()
+            finally:
+                await bot.stop_wecom()
+            break
+        else:
+            print(f"连接失败: {ws_url}")
+            bot.close_log()
+            bot = None
+
+    if not connected:
+        print("所有服务器连接失败")
+
+    if bot:
+        bot.close_log()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n已停止")

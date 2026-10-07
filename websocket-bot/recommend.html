@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5x5 排雷下一步推荐</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            color: #8b9bb4;
+            font-size: 0.85rem;
+            margin-bottom: 18px;
+            text-align: center;
+        }
+
+        .recommend-bar {
+            background: rgba(74, 222, 128, 0.12);
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            border-radius: 12px;
+            padding: 12px 24px;
+            text-align: center;
+            margin-bottom: 16px;
+            min-width: 320px;
+        }
+        .recommend-bar .label {
+            font-size: 0.8rem;
+            color: #8b9bb4;
+            margin-bottom: 4px;
+        }
+        .recommend-bar .value {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #4ade80;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 64px);
+            grid-template-rows: repeat(5, 64px);
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+
+        .cell {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+            font-weight: bold;
+            user-select: none;
+            transition: all 0.1s;
+        }
+
+        .cell:hover:not(.revealed) {
+            background: rgba(233, 69, 96, 0.2);
+            border-color: rgba(233, 69, 96, 0.5);
+        }
+
+        .cell.best {
+            border-color: #4ade80;
+            box-shadow: 0 0 14px rgba(74, 222, 128, 0.6);
+        }
+
+        .cell.revealed.star {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.25), rgba(255, 165, 0, 0.25));
+            border-color: rgba(255, 215, 0, 0.7);
+            cursor: default;
+            font-size: 1.8rem;
+        }
+
+        .cell.revealed {
+            cursor: default;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .cell.n1 { color: #60a5fa; }
+        .cell.n2 { color: #4ade80; }
+        .cell.n3 { color: #f87171; }
+        .cell.n4 { color: #818cf8; }
+        .cell.n5 { color: #d97706; }
+        .cell.n6 { color: #06b6d4; }
+        .cell.n7 { color: #1f2937; text-shadow: 0 0 2px #fff; }
+        .cell.n8 { color: #9ca3af; }
+
+        .stats {
+            display: flex;
+            gap: 16px;
+            color: #8b9bb4;
+            font-size: 0.9rem;
+        }
+        .stats span b {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .hint {
+            margin-top: 14px;
+            color: #8b9bb4;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        .hint kbd {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(74, 222, 128, 0.2);
+            border: 1px solid rgba(74, 222, 128, 0.6);
+            color: #4ade80;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 100;
+        }
+        .toast.show { opacity: 1; }
+
+        .reset-btn {
+            margin-top: 12px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .reset-btn:hover { background: rgba(233, 69, 96, 0.4); }
+    </style>
+</head>
+<body>
+    <h1>5×5 排雷下一步推荐</h1>
+    <p class="subtitle">点格 + 输入看到的数字（取消 = 翻到星）— 实时给出最佳下一步</p>
+
+    <div class="recommend-bar">
+        <div class="label">当前最优下一步</div>
+        <div class="value" id="recommend">行 1, 列 1 · 概率 36%</div>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <div class="stats">
+        <span>已用步数 <b id="steps">0</b></span>
+        <span>已找到星 <b id="stars">0</b> / 9</span>
+    </div>
+
+    <button class="reset-btn" id="resetBtn">重置</button>
+
+    <p class="hint">
+        点击格子 → 输入 0-8 的数字 → 回车<br>
+        点取消或直接关掉弹窗 = 翻到星<br>
+        快捷键：<kbd>R</kbd> 重置
+    </p>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="recommend.js"></script>
+</body>
+</html>

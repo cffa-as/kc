@@ -1,0 +1,4 @@
+aiohttp>=3.9
+openai>=1.30
+requests>=2.31
+websockets>=14.0

@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片拼图工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            color: #e94560;
+        }
+        .workspace {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .canvas-container {
+            flex: 1;
+            min-width: 400px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .canvas {
+            position: relative;
+            width: 400px;
+            height: 500px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+        }
+        .draggable {
+            position: absolute;
+            cursor: move;
+            user-select: none;
+            transition: box-shadow 0.2s;
+        }
+        .draggable:hover {
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+        }
+        .draggable.dragging {
+            opacity: 0.8;
+            z-index: 1000 !important;
+        }
+        .draggable img {
+            pointer-events: none;
+            display: block;
+        }
+        .sidebar {
+            width: 220px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 12px;
+        }
+        .panel h3 {
+            margin-bottom: 10px;
+            color: #e94560;
+            font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 6px;
+        }
+        .layer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .layer-item:hover {
+            background: rgba(233, 69, 96, 0.2);
+        }
+        .layer-item.active {
+            background: rgba(233, 69, 96, 0.3);
+            border: 1px solid #e94560;
+        }
+        .layer-preview {
+            width: 30px;
+            height: 30px;
+            object-fit: contain;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .layer-name {
+            flex: 1;
+            font-size: 0.75rem;
+        }
+        .layer-order {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e94560;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: bold;
+        }
+        .btn {
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 6px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(233, 69, 96, 0.4);
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .coords {
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+        .coords p {
+            margin: 2px 0;
+            color: #aaa;
+        }
+        .coords span {
+            color: #e94560;
+        }
+        .controls {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        .controls .btn {
+            flex: 1;
+            margin-bottom: 0;
+            padding: 6px 4px;
+            font-size: 0.7rem;
+        }
+        .json-preview {
+            margin-top: 10px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.65rem;
+            max-height: 120px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #aaa;
+        }
+        .scale-control {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+        }
+        .scale-control label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.75rem;
+            color: #aaa;
+        }
+        .scale-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .scale-row span {
+            width: 35px;
+            font-size: 0.7rem;
+        }
+        .scale-row input[type="range"] {
+            flex: 1;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            -webkit-appearance: none;
+        }
+        .scale-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e94560;
+            cursor: pointer;
+        }
+        .scale-row .scale-value {
+            width: 40px;
+            text-align: right;
+            color: #e94560;
+            font-weight: 600;
+            font-size: 0.7rem;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: background 0.2s;
+        }
+        .checkbox-item:hover {
+            background: rgba(233, 69, 96, 0.2);
+        }
+        .checkbox-item input {
+            accent-color: #e94560;
+            width: 12px;
+            height: 12px;
+        }
+        .layer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>图片拼图工具</h1>
+        <div class="workspace">
+            <div class="canvas-container">
+                <div class="canvas" id="canvas"></div>
+                <div class="coords" id="coords">
+                    <p>选中图层: <span id="selected-name">无</span></p>
+                    <p>X: <span id="selected-x">0</span></p>
+                    <p>Y: <span id="selected-y">0</span></p>
+                </div>
+            </div>
+            <div class="sidebar">
+                <div class="panel">
+                    <h3>图层列表 (拖拽排序)</h3>
+                    <div class="layer-list" id="layer-list"></div>
+                </div>
+                <div class="panel">
+                    <h3>操作</h3>
+                    <div class="controls">
+                        <button class="btn btn-secondary" onclick="bringToFront()">置顶</button>
+                        <button class="btn btn-secondary" onclick="sendToBack()">置底</button>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveConfig()">保存为 JSON</button>
+                    <button class="btn btn-secondary" onclick="loadConfig()">加载 JSON</button>
+                    <button class="btn btn-secondary" onclick="resetPositions()">重置位置</button>
+                    <div class="json-preview" id="json-preview">点击"保存"查看 JSON</div>
+                </div>
+                <div class="panel">
+                    <h3>统一缩放</h3>
+                    <div class="scale-control">
+                        <label>选择图层:</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item"><input type="checkbox" id="scale-hair" checked>头发</label>
+                            <label class="checkbox-item"><input type="checkbox" id="scale-clothes" checked>衣服</label>
+                            <label class="checkbox-item"><input type="checkbox" id="scale-pants" checked>裤子</label>
+                        </div>
+                        <div class="scale-row" style="margin-top: 8px; margin-bottom: 0;">
+                            <span id="global-scale-label" style="width: auto;">100%</span>
+                            <input type="range" id="global-scale" min="50" max="150" value="100"
+                                   style="flex: 1;" oninput="updateGlobalScale(this.value)">
+                        </div>
+                        <div class="scale-row" style="margin-bottom: 0;">
+                            <span style="font-size: 0.65rem;">精细</span>
+                            <input type="range" id="fine-scale" min="80" max="120" value="100"
+                                   style="flex: 1;" oninput="updateGlobalScale(document.getElementById('global-scale').value)">
+                            <span class="scale-value" id="fine-scale-value">100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const layers = [
+            { id: 'base', name: '小人模板', file: 'test/base.png', zIndex: 1, scalable: false },
+            { id: 'hair', name: '头发', file: 'test/19071.png', zIndex: 2, scalable: true },
+            { id: 'clothes', name: '衣服', file: 'test/18617.png', zIndex: 3, scalable: true },
+            { id: 'pants', name: '裤子', file: 'test/5733.png', zIndex: 4, scalable: true }
+        ];
+
+        let positions = {};
+        let scales = {};
+        let selectedLayer = null;
+        let dragOffset = { x: 0, y: 0 };
+        let isDragging = false;
+
+        function init() {
+            layers.forEach(layer => {
+                positions[layer.id] = { x: 50, y: 50 };
+                scales[layer.id] = 100;
+            });
+            renderLayers();
+        }
+
+        function renderLayers() {
+            const canvas = document.getElementById('canvas');
+            const layerList = document.getElementById('layer-list');
+            canvas.innerHTML = '';
+            layerList.innerHTML = '';
+
+            const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
+
+            sortedLayers.forEach((layer, index) => {
+                const el = document.createElement('div');
+                el.className = 'draggable';
+                el.id = `layer-${layer.id}`;
+                el.style.left = positions[layer.id].x + 'px';
+                el.style.top = positions[layer.id].y + 'px';
+                el.style.zIndex = layer.zIndex;
+
+                const img = document.createElement('img');
+                img.src = layer.file;
+                img.width = 300 * (scales[layer.id] / 100);
+                img.alt = layer.name;
+                el.appendChild(img);
+
+                el.addEventListener('mousedown', (e) => startDrag(e, layer.id));
+                el.addEventListener('touchstart', (e) => startDrag(e, layer.id), { passive: false });
+
+                canvas.appendChild(el);
+
+                const listItem = document.createElement('div');
+                listItem.className = 'layer-item' + (selectedLayer === layer.id ? ' active' : '');
+                listItem.innerHTML = `
+                    <img src="${layer.file}" class="layer-preview">
+                    <span class="layer-name">${layer.name}</span>
+                    <span class="layer-order">${layer.zIndex}</span>
+                `;
+                listItem.onclick = () => selectLayer(layer.id);
+                layerList.appendChild(listItem);
+            });
+
+            updateCoords();
+        }
+
+        function startDrag(e, layerId) {
+            e.preventDefault();
+            selectLayer(layerId);
+            isDragging = true;
+
+            const el = document.getElementById(`layer-${layerId}`);
+            el.classList.add('dragging');
+
+            const rect = el.getBoundingClientRect();
+            const canvas = document.getElementById('canvas');
+            const canvasRect = canvas.getBoundingClientRect();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            dragOffset.x = clientX - rect.left;
+            dragOffset.y = clientY - rect.top;
+
+            function onMove(e) {
+                if (!isDragging) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                let newX = clientX - canvasRect.left - dragOffset.x;
+                let newY = clientY - canvasRect.top - dragOffset.y;
+
+                newX = Math.max(0, Math.min(canvasRect.width - 50, newX));
+                newY = Math.max(0, Math.min(canvasRect.height - 50, newY));
+
+                positions[layerId].x = Math.round(newX);
+                positions[layerId].y = Math.round(newY);
+
+                el.style.left = newX + 'px';
+                el.style.top = newY + 'px';
+                updateCoords();
+            }
+
+            function onEnd() {
+                isDragging = false;
+                el.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onEnd);
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('touchend', onEnd);
+            }
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onEnd);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onEnd);
+        }
+
+        function selectLayer(layerId) {
+            selectedLayer = layerId;
+            document.querySelectorAll('.layer-item').forEach((item, i) => {
+                item.classList.toggle('active', layers[i].id === layerId);
+            });
+            updateCoords();
+        }
+
+        function updateCoords() {
+            document.getElementById('selected-name').textContent =
+                selectedLayer ? layers.find(l => l.id === selectedLayer)?.name : '无';
+            document.getElementById('selected-x').textContent =
+                selectedLayer ? positions[selectedLayer].x : '0';
+            document.getElementById('selected-y').textContent =
+                selectedLayer ? positions[selectedLayer].y : '0';
+        }
+
+        function updateGlobalScale(baseValue) {
+            const fineValue = document.getElementById('fine-scale').value;
+            const combinedScale = Math.round(baseValue * (fineValue / 100));
+            document.getElementById('global-scale-label').textContent = combinedScale + '%';
+            document.getElementById('fine-scale-value').textContent = fineValue + '%';
+
+            const scalableLayers = ['hair', 'clothes', 'pants'];
+            scalableLayers.forEach(id => {
+                const checkbox = document.getElementById(`scale-${id}`);
+                if (checkbox && checkbox.checked) {
+                    scales[id] = combinedScale;
+                }
+            });
+
+            scalableLayers.forEach(id => {
+                const el = document.getElementById(`layer-${id}`);
+                if (el) {
+                    const img = el.querySelector('img');
+                    if (img) {
+                        img.width = 300 * (scales[id] / 100);
+                    }
+                }
+            });
+        }
+
+        function bringToFront() {
+            if (!selectedLayer) return;
+            const maxZ = Math.max(...layers.map(l => l.zIndex));
+            const layer = layers.find(l => l.id === selectedLayer);
+            layer.zIndex = maxZ + 1;
+            renderLayers();
+        }
+
+        function sendToBack() {
+            if (!selectedLayer) return;
+            const minZ = Math.min(...layers.map(l => l.zIndex));
+            const layer = layers.find(l => l.id === selectedLayer);
+            layer.zIndex = minZ - 1;
+            renderLayers();
+        }
+
+        function saveConfig() {
+            const config = {};
+            layers.forEach(layer => {
+                config[layer.id] = {
+                    x: positions[layer.id].x,
+                    y: positions[layer.id].y,
+                    zIndex: layer.zIndex,
+                    scale: scales[layer.id]
+                };
+            });
+
+            const json = JSON.stringify(config, null, 2);
+            document.getElementById('json-preview').textContent = json;
+
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'positions.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadConfig() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const config = JSON.parse(event.target.result);
+                        Object.keys(config).forEach(id => {
+                            if (positions[id]) {
+                                positions[id] = { x: config[id].x, y: config[id].y };
+                                scales[id] = config[id].scale || 100;
+                                const layer = layers.find(l => l.id === id);
+                                if (layer && config[id].zIndex) {
+                                    layer.zIndex = config[id].zIndex;
+                                }
+                            }
+                        });
+
+                        document.getElementById('global-scale').value = 100;
+                        document.getElementById('fine-scale').value = 100;
+                        updateGlobalScale(100);
+
+                        renderLayers();
+                        document.getElementById('json-preview').textContent =
+                            '已加载: ' + file.name;
+                    } catch (err) {
+                        alert('JSON 格式错误: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function resetPositions() {
+            layers.forEach(layer => {
+                positions[layer.id] = { x: 50, y: 50 };
+                scales[layer.id] = 100;
+            });
+            document.getElementById('global-scale').value = 100;
+            document.getElementById('fine-scale').value = 100;
+            updateGlobalScale(100);
+            renderLayers();
+        }
+
+        init();
+    </script>
+</body>
+</html>

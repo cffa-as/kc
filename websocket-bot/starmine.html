@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5x5 排雷计算器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.8rem;
+            color: #e94560;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #8b9bb4;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+
+        .workspace {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .board-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 64px);
+            grid-template-rows: repeat(5, 64px);
+            gap: 4px;
+        }
+
+        .cell {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-size: 1.1rem;
+            font-weight: bold;
+            user-select: none;
+            position: relative;
+            flex-direction: column;
+        }
+
+        .cell:hover:not(.revealed):not(.auto-disabled) {
+            background: rgba(233, 69, 96, 0.2);
+            border-color: rgba(233, 69, 96, 0.5);
+        }
+
+        .cell .prob {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.45);
+            font-weight: normal;
+            margin-top: 2px;
+        }
+
+        .cell.recommended {
+            border-color: #4ade80;
+            box-shadow: 0 0 12px rgba(74, 222, 128, 0.5);
+        }
+
+        .cell.recommended .prob {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .cell.revealed {
+            cursor: default;
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .cell.revealed.star {
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.25), rgba(255, 165, 0, 0.25));
+            border-color: rgba(255, 215, 0, 0.7);
+            font-size: 1.8rem;
+        }
+
+        .cell.revealed.n1 { color: #60a5fa; }
+        .cell.revealed.n2 { color: #4ade80; }
+        .cell.revealed.n3 { color: #f87171; }
+        .cell.revealed.n4 { color: #818cf8; }
+        .cell.revealed.n5 { color: #d97706; }
+        .cell.revealed.n6 { color: #06b6d4; }
+        .cell.revealed.n7 { color: #1f2937; text-shadow: 0 0 2px #fff; }
+        .cell.revealed.n8 { color: #9ca3af; }
+
+        .sidebar {
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .panel h3 {
+            font-size: 0.85rem;
+            color: #8b9bb4;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.95rem;
+        }
+
+        .stat-row .label { color: #8b9bb4; }
+        .stat-row .value { color: #fff; font-weight: bold; }
+        .stat-row .value.highlight { color: #4ade80; }
+
+        .recommend {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.05));
+            border: 1px solid rgba(74, 222, 128, 0.4);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .recommend .label {
+            font-size: 0.75rem;
+            color: #8b9bb4;
+            margin-bottom: 6px;
+        }
+
+        .recommend .prob-big {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #4ade80;
+        }
+
+        .recommend .coord {
+            font-size: 0.85rem;
+            color: #8b9bb4;
+            margin-top: 4px;
+        }
+
+        .top3 {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .top3-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .top3-item .rank {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.7rem;
+        }
+
+        .top3-item .coord-text {
+            color: #fff;
+            font-weight: bold;
+            min-width: 56px;
+        }
+
+        .top3-item .prob-text {
+            color: #4ade80;
+            margin-left: auto;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.15s;
+        }
+
+        button:hover:not(:disabled) {
+            background: rgba(233, 69, 96, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        button.primary {
+            background: #e94560;
+        }
+
+        button.primary:hover:not(:disabled) {
+            background: #d63651;
+        }
+
+        .log {
+            max-height: 180px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            font-family: 'SF Mono', Menlo, monospace;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            color: #8b9bb4;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .log-entry.star { color: #fbbf24; }
+        .log-entry.num { color: #60a5fa; }
+        .log-entry.win { color: #4ade80; font-weight: bold; }
+
+        .status-bar {
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .status-bar.idle { background: rgba(255, 255, 255, 0.05); color: #8b9bb4; }
+        .status-bar.playing { background: rgba(74, 222, 128, 0.1); color: #4ade80; }
+        .status-bar.auto { background: rgba(96, 165, 250, 0.1); color: #60a5fa; }
+        .status-bar.win { background: rgba(74, 222, 128, 0.2); color: #4ade80; font-weight: bold; }
+
+        .stats-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            text-align: center;
+        }
+
+        .stats-summary div {
+            padding: 8px 4px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+        }
+
+        .stats-summary .v {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #e94560;
+        }
+
+        .stats-summary .l {
+            font-size: 0.7rem;
+            color: #8b9bb4;
+            margin-top: 2px;
+        }
+
+        .cell.auto-disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>5×5 排雷计算器</h1>
+        <p class="subtitle">共 9 颗星，目标是「用最少的点击次数翻完全部星星」 — 理论下限 9 步</p>
+
+        <div class="workspace">
+            <div class="board-panel">
+                <div class="board" id="board"></div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel">
+                    <div class="status-bar idle" id="status">点击格子开始</div>
+                </div>
+
+                <div class="panel">
+                    <h3>当前统计</h3>
+                    <div class="stat-row">
+                        <span class="label">已用步数</span>
+                        <span class="value" id="stepsUsed">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">已找到星星</span>
+                        <span class="value highlight" id="starsFound">0 / 9</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">未翻格子</span>
+                        <span class="value" id="unrevealed">25</span>
+                    </div>
+                </div>
+
+                <div class="panel" id="recommendPanel">
+                    <h3>推荐下一步</h3>
+                    <div class="recommend">
+                        <div class="label">最高概率</div>
+                        <div class="prob-big" id="bestProb">36%</div>
+                        <div class="coord" id="bestCoord">行 1, 列 1</div>
+                    </div>
+                    <div class="top3" id="top3"></div>
+                </div>
+
+                <div class="panel">
+                    <h3>自动玩统计</h3>
+                    <div class="stats-summary">
+                        <div>
+                            <div class="v" id="autoRuns">0</div>
+                            <div class="l">运行次数</div>
+                        </div>
+                        <div>
+                            <div class="v" id="autoAvg">—</div>
+                            <div class="l">平均步数</div>
+                        </div>
+                        <div>
+                            <div class="v" id="autoBest">—</div>
+                            <div class="l">最优记录</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>操作</h3>
+                    <div class="buttons">
+                        <button id="resetBtn">重置</button>
+                        <button id="answerBtn">显示答案</button>
+                        <button id="autoplayBtn" class="primary">自动玩</button>
+                        <button id="autobatchBtn">批量跑 50 次</button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>点击日志</h3>
+                    <div class="log" id="log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="starmine.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+question_agent_config.json
+question_agent.log
+last_question_region.png
+__pycache__/
+tmp/local_knowledge_index.json
+.DS_Store
